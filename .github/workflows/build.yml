@@ -27,7 +27,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq curl wget unzip file
 
-      - name: Download ReVanced / Morphe CLI
+      - name: Download ReVanced CLI
         run: |
           echo "Fetching latest ReVanced CLI..."
           CLI_URL=$(curl -s https://api.github.com/repos/ReVanced/revanced-cli/releases/latest | jq -r '.assets[] | select(.name | endswith(".jar")) | .browser_download_url')
@@ -43,7 +43,7 @@ jobs:
         run: |
           echo "Fetching latest paresh-patches release from GitLab..."
           RELEASE_INFO=$(curl -s "https://gitlab.com/api/v4/projects/Paresh-Maheshwari%2Fparesh-patches/releases")
-          PATCH_URL=$(echo "$RELEASE_INFO" | jq -r '.[0].assets.links[]? | select(.name | endswith(".jar") or endswith(".rvp") or endswith(".mpp")) | .url' | head -n 1)
+          PATCH_URL=$(echo "$RELEASE_INFO" | jq -r '.[0].assets.links[]? | select(.name | test("\\.(jar|rvp|mpp)$")) | .url' | head -n 1)
 
           if [ -z "$PATCH_URL" ] || [ "$PATCH_URL" == "null" ]; then
             PATCH_URL=$(echo "$RELEASE_INFO" | jq -r '.[0].description' | grep -oP 'https://gitlab.com/[^\s)]+\.(jar|rvp|mpp)' | head -n 1)
@@ -55,7 +55,6 @@ jobs:
       - name: Download & Auto-Merge APKM/Bundle
         run: |
           echo "Downloading file..."
-          # Google Drive Direct ID Extraction
           DRIVE_ID=$(echo "${{ github.event.inputs.apk_url }}" | grep -oP '(?<=/d/|id=)[a-zA-Z0-9_-]+' | head -n 1)
           
           if [ -n "$DRIVE_ID" ]; then
@@ -78,14 +77,10 @@ jobs:
 
       - name: Patch APK
         run: |
-          echo "Patching APK..."
+          echo "Patching APK using ReVanced CLI..."
           java -jar revanced-cli.jar patch \
-            -p paresh-patches.jar \
-            -o jiohotstar-patched.apk \
-            jiohotstar.apk || \
-          java -jar revanced-cli.jar patch \
-            -b paresh-patches.jar \
-            -o jiohotstar-patched.apk \
+            --patch-bundle paresh-patches.jar \
+            --out jiohotstar-patched.apk \
             jiohotstar.apk
 
       - name: Download APK Signer & Sign APK
