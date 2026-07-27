@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       apk_url:
-        description: 'Direct download URL for JioHotstar Standalone APK'
+        description: 'Direct URL for JioHotstar (APK, APKM, XAPK, or ZIP Bundle)'
         required: true
         default: ''
 
@@ -25,11 +25,11 @@ jobs:
       - name: Install Tools & Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq curl wget
+          sudo apt-get install -y jq curl wget unzip file
 
       - name: Download ReVanced / Morphe CLI & Integrations
         run: |
-          echo "Fetching latest ReVanced/Morphe CLI..."
+          echo "Fetching latest ReVanced CLI..."
           CLI_URL=$(curl -s https://api.github.com/repos/ReVanced/revanced-cli/releases/latest | jq -r '.assets[] | select(.name | endswith(".jar")) | .browser_download_url')
           curl -L -o revanced-cli.jar "$CLI_URL"
 
@@ -37,25 +37,41 @@ jobs:
           INT_URL=$(curl -s https://api.github.com/repos/ReVanced/revanced-integrations/releases/latest | jq -r '.assets[] | select(.name | endswith(".apk")) | .browser_download_url')
           curl -L -o revanced-integrations.apk "$INT_URL"
 
+      - name: Download APKEditor (For Merging APKM/Bundles)
+        run: |
+          echo "Fetching latest APKEditor..."
+          APKEDITOR_URL=$(curl -s https://api.github.com/repos/REAndroid/APKEditor/releases/latest | jq -r '.assets[] | select(.name | endswith(".jar")) | .browser_download_url')
+          curl -L -o APKEditor.jar "$APKEDITOR_URL"
+
       - name: Download Paresh Patches from GitLab
         run: |
           echo "Fetching latest paresh-patches release from GitLab..."
-          # Fetch latest release asset URL from GitLab API
           RELEASE_INFO=$(curl -s "https://gitlab.com/api/v4/projects/Paresh-Maheshwari%2Fparesh-patches/releases")
           PATCH_URL=$(echo "$RELEASE_INFO" | jq -r '.[0].assets.links[]? | select(.name | endswith(".jar") or endswith(".rvp") or endswith(".mpp")) | .url' | head -n 1)
 
           if [ -z "$PATCH_URL" ] || [ "$PATCH_URL" == "null" ]; then
-            # Direct fallback URL if API link structure varies
             PATCH_URL=$(echo "$RELEASE_INFO" | jq -r '.[0].description' | grep -oP 'https://gitlab.com/[^\s)]+\.(jar|rvp|mpp)' | head -n 1)
           fi
 
           echo "Downloading patch from: $PATCH_URL"
           curl -L -o paresh-patches.jar "$PATCH_URL"
 
-      - name: Download Target JioHotstar APK
+      - name: Download & Auto-Merge APKM/Bundle
         run: |
-          echo "Downloading JioHotstar APK..."
-          curl -L -o jiohotstar.apk "${{ github.event.inputs.apk_url }}"
+          echo "Downloading file..."
+          curl -L -o downloaded_file "${{ github.event.inputs.apk_url }}"
+
+          FILE_TYPE=$(file downloaded_file)
+          echo "File Type: $FILE_TYPE"
+
+          # Agar zip/apkm/bundle file hai toh APKEditor se merge karein
+          if [[ "$FILE_TYPE" == *"Zip archive"* ]] || [[ "${{ github.event.inputs.apk_url }}" =~ \.(apkm|xapk|apks|zip) ]]; then
+            echo "Bundle file detected! Merging into standalone APK..."
+            java -jar APKEditor.jar m -i downloaded_file -o jiohotstar.apk
+          else
+            echo "Single APK file detected."
+            mv downloaded_file jiohotstar.apk
+          fi
 
       - name: Patch APK
         run: |
