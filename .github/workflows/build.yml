@@ -86,7 +86,14 @@ jobs:
           fi
 
           FILE_TYPE=$(file downloaded_file)
+          FILE_SIZE=$(stat -c%s downloaded_file)
           echo "Downloaded file type: $FILE_TYPE"
+          echo "Downloaded file size: $FILE_SIZE bytes"
+
+          if [ "$FILE_SIZE" -lt 10000000 ]; then
+            echo "::error:: Downloaded file is too small ($FILE_SIZE bytes). Check file URL!"
+            exit 1
+          fi
 
           if [[ "$FILE_TYPE" == *"Zip archive"* ]] || [[ "${{ github.event.inputs.apk_url }}" =~ \.(apkm|xapk|apks|zip) ]]; then
             echo "Bundle file detected! Merging into standalone APK..."
@@ -99,24 +106,16 @@ jobs:
       - name: Patch APK
         run: |
           echo "Patching APK using Morphe CLI..."
-          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
-          AAPT2_PATH="$BUILD_TOOLS_DIR/aapt2"
 
-          echo "Using AAPT2 binary at: $AAPT2_PATH"
+          # Clean official Morphe CLI command
+          java -jar morphe-cli.jar patch -p paresh-patches.mpp jiohotstar.apk 2>&1 | tee patch.log
 
-          # Official Morphe Desktop CLI syntax
-          java -jar morphe-cli.jar patch \
-            -p paresh-patches.mpp \
-            --custom-aapt2-binary="$AAPT2_PATH" \
-            --out=jiohotstar-patched.apk \
-            jiohotstar.apk 2>&1 | tee patch.log || \
-          java -jar morphe-cli.jar patch \
-            -p paresh-patches.mpp \
-            --out=jiohotstar-patched.apk \
-            jiohotstar.apk 2>&1 | tee patch.log
-
-          # Print full log if output file was not generated
-          if [ ! -f "jiohotstar-patched.apk" ]; then
+          # Locate generated output APK file
+          OUT_APK=$(ls *patched*.apk jiohotstar-patched.apk 2>/dev/null | head -n 1)
+          if [ -n "$OUT_APK" ]; then
+            echo "Patching successful! Generated file: $OUT_APK"
+            mv "$OUT_APK" jiohotstar-patched.apk
+          else
             echo "=================== FULL ERROR LOG ==================="
             cat patch.log
             echo "======================================================"
