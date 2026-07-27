@@ -16,11 +16,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java JDK
+      - name: Setup Java JDK (Java 17 Stable)
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '21'
+          java-version: '17'
 
       - name: Install Tools & Setup Android Build-Tools (AAPT2)
         run: |
@@ -98,12 +98,31 @@ jobs:
       - name: Patch APK
         run: |
           echo "Patching APK using Morphe CLI..."
-          
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
+          AAPT2_PATH="$BUILD_TOOLS_DIR/aapt2"
+
+          echo "Using AAPT2 binary at: $AAPT2_PATH"
+
+          # Run Morphe CLI patcher and output log
           java -jar morphe-cli.jar patch \
             --patches paresh-patches.mpp \
             --out jiohotstar-patched.apk \
+            --custom-aapt2-binary "$AAPT2_PATH" \
             --unsigned \
-            jiohotstar.apk
+            jiohotstar.apk 2>&1 | tee patch.log || \
+          java -jar morphe-cli.jar patch \
+            -p paresh-patches.mpp \
+            -o jiohotstar-patched.apk \
+            -u \
+            jiohotstar.apk 2>&1 | tee patch.log
+
+          # Verify if output file exists
+          if [ ! -f "jiohotstar-patched.apk" ]; then
+            echo "=================== FULL ERROR LOG ==================="
+            cat patch.log
+            echo "======================================================"
+            exit 1
+          fi
 
       - name: Download APK Signer & Sign APK
         run: |
