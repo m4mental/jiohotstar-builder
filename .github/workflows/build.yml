@@ -22,10 +22,15 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Install Tools & Dependencies
+      - name: Install Tools & Setup Android Build-Tools (AAPT2)
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq curl wget unzip file
+          sudo apt-get install -y jq curl wget unzip file aapt
+          
+          # Locate AAPT2 and export to GITHUB_PATH
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
+          echo "Using Android Build-Tools from: $BUILD_TOOLS_DIR"
+          echo "$BUILD_TOOLS_DIR" >> $GITHUB_PATH
 
       - name: Download ReVanced CLI
         run: |
@@ -88,21 +93,19 @@ jobs:
 
       - name: Patch APK
         run: |
-          echo "Patching APK using ReVanced CLI..."
+          echo "Patching APK using ReVanced CLI with AAPT2..."
+          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
+          AAPT2_PATH="$BUILD_TOOLS_DIR/aapt2"
+          
+          echo "Using AAPT2 binary at: $AAPT2_PATH"
+
           java -jar revanced-cli.jar patch jiohotstar.apk \
             --patches paresh-patches.mpp \
+            --custom-aapt2-binary "$AAPT2_PATH" \
             --out jiohotstar-patched.apk || \
           java -jar revanced-cli.jar patch jiohotstar.apk \
-            --patches paresh-patches.rvp \
-            --out jiohotstar-patched.apk || \
-          java -jar revanced-cli.jar patch \
             --patches paresh-patches.mpp \
-            -o jiohotstar-patched.apk \
-            jiohotstar.apk || \
-          java -jar revanced-cli.jar patch \
-            -bp paresh-patches.mpp \
-            -o jiohotstar-patched.apk \
-            jiohotstar.apk
+            --out jiohotstar-patched.apk
 
       - name: Download APK Signer & Sign APK
         run: |
