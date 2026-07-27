@@ -1,0 +1,77 @@
+name: Build Patched JioHotstar APK
+
+on:
+  workflow_dispatch:
+    inputs:
+      apk_url:
+        description: 'Direct download URL for JioHotstar Standalone APK'
+        required: true
+        default: ''
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Install Tools & Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl wget
+
+      - name: Download ReVanced / Morphe CLI & Integrations
+        run: |
+          echo "Fetching latest ReVanced/Morphe CLI..."
+          CLI_URL=$(curl -s https://api.github.com/repos/ReVanced/revanced-cli/releases/latest | jq -r '.assets[] | select(.name | endswith(".jar")) | .browser_download_url')
+          curl -L -o revanced-cli.jar "$CLI_URL"
+
+          echo "Fetching latest Integrations..."
+          INT_URL=$(curl -s https://api.github.com/repos/ReVanced/revanced-integrations/releases/latest | jq -r '.assets[] | select(.name | endswith(".apk")) | .browser_download_url')
+          curl -L -o revanced-integrations.apk "$INT_URL"
+
+      - name: Download Paresh Patches from GitLab
+        run: |
+          echo "Fetching latest paresh-patches release from GitLab..."
+          # Fetch latest release asset URL from GitLab API
+          RELEASE_INFO=$(curl -s "https://gitlab.com/api/v4/projects/Paresh-Maheshwari%2Fparesh-patches/releases")
+          PATCH_URL=$(echo "$RELEASE_INFO" | jq -r '.[0].assets.links[]? | select(.name | endswith(".jar") or endswith(".rvp") or endswith(".mpp")) | .url' | head -n 1)
+
+          if [ -z "$PATCH_URL" ] || [ "$PATCH_URL" == "null" ]; then
+            # Direct fallback URL if API link structure varies
+            PATCH_URL=$(echo "$RELEASE_INFO" | jq -r '.[0].description' | grep -oP 'https://gitlab.com/[^\s)]+\.(jar|rvp|mpp)' | head -n 1)
+          fi
+
+          echo "Downloading patch from: $PATCH_URL"
+          curl -L -o paresh-patches.jar "$PATCH_URL"
+
+      - name: Download Target JioHotstar APK
+        run: |
+          echo "Downloading JioHotstar APK..."
+          curl -L -o jiohotstar.apk "${{ github.event.inputs.apk_url }}"
+
+      - name: Patch APK
+        run: |
+          java -jar revanced-cli.jar patch \
+            -m revanced-integrations.apk \
+            -p paresh-patches.jar \
+            -o jiohotstar-patched.apk \
+            jiohotstar.apk
+
+      - name: Download APK Signer & Sign APK
+        run: |
+          wget https://github.com/patrickfav/uber-apk-signer/releases/download/v1.3.0/uber-apk-signer-1.3.0.jar
+          java -jar uber-apk-signer-1.3.0.jar -a jiohotstar-patched.apk --overwrite
+
+      - name: Upload Patched APK as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JioHotstar-Patched-APK
+          path: jiohotstar-patched.apk
