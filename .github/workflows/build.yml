@@ -78,8 +78,11 @@ jobs:
       - name: Patch APK
         run: |
           echo "Patching APK using ReVanced CLI..."
+          java -jar revanced-cli.jar patch jiohotstar.apk \
+            --patches paresh-patches.jar \
+            --out jiohotstar-patched.apk || \
           java -jar revanced-cli.jar patch \
-            --patch-bundle paresh-patches.jar \
+            --patches paresh-patches.jar \
             --out jiohotstar-patched.apk \
             jiohotstar.apk
 
