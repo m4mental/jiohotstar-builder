@@ -16,16 +16,17 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java JDK (Java 21 Required for Morphe CLI)
+      - name: Setup Java JDK (Java 21 Required)
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '21'
 
-      - name: Install Tools & Setup Android Build-Tools (AAPT2)
+      - name: Install Tools, Python Gdown & Android Build-Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq curl wget unzip file aapt
+          sudo apt-get install -y jq curl wget unzip file aapt python3-pip
+          pip install --break-system-packages gdown || pip install gdown
           
           BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
           echo "Using Android Build-Tools from: $BUILD_TOOLS_DIR"
@@ -78,8 +79,8 @@ jobs:
           DRIVE_ID=$(echo "${{ github.event.inputs.apk_url }}" | grep -oP '(?<=/d/|id=)[a-zA-Z0-9_-]+' | head -n 1)
           
           if [ -n "$DRIVE_ID" ]; then
-            echo "Google Drive link detected. File ID: $DRIVE_ID"
-            curl -L -o downloaded_file "https://drive.google.com/uc?export=download&id=${DRIVE_ID}"
+            echo "Google Drive link detected. Using gdown for ID: $DRIVE_ID"
+            gdown --id "$DRIVE_ID" -O downloaded_file || curl -L -o downloaded_file "https://drive.google.com/uc?export=download&id=${DRIVE_ID}"
           else
             curl -L -A "Mozilla/5.0" -o downloaded_file "${{ github.event.inputs.apk_url }}"
           fi
@@ -103,20 +104,18 @@ jobs:
 
           echo "Using AAPT2 binary at: $AAPT2_PATH"
 
-          # Run Morphe CLI patcher with Java 21
+          # Official Morphe Desktop CLI syntax
           java -jar morphe-cli.jar patch \
-            --patches paresh-patches.mpp \
-            --out jiohotstar-patched.apk \
-            --custom-aapt2-binary "$AAPT2_PATH" \
-            --unsigned \
+            -p paresh-patches.mpp \
+            --custom-aapt2-binary="$AAPT2_PATH" \
+            --out=jiohotstar-patched.apk \
             jiohotstar.apk 2>&1 | tee patch.log || \
           java -jar morphe-cli.jar patch \
             -p paresh-patches.mpp \
-            -o jiohotstar-patched.apk \
-            -u \
+            --out=jiohotstar-patched.apk \
             jiohotstar.apk 2>&1 | tee patch.log
 
-          # Verify output file
+          # Print full log if output file was not generated
           if [ ! -f "jiohotstar-patched.apk" ]; then
             echo "=================== FULL ERROR LOG ==================="
             cat patch.log
