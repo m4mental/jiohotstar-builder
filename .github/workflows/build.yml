@@ -43,14 +43,25 @@ jobs:
         run: |
           echo "Fetching latest paresh-patches release from GitLab..."
           RELEASE_INFO=$(curl -s "https://gitlab.com/api/v4/projects/Paresh-Maheshwari%2Fparesh-patches/releases")
-          PATCH_URL=$(echo "$RELEASE_INFO" | jq -r '.[0].assets.links[]? | select(.name | test("\\.(jar|rvp|mpp)$")) | .url' | head -n 1)
+          
+          PATCH_URL=$(echo "$RELEASE_INFO" | jq -r '.[0].assets.links[]? | select(.name | test("\\.(mpp|rvp|jar)$")) | .url' | head -n 1)
 
           if [ -z "$PATCH_URL" ] || [ "$PATCH_URL" == "null" ]; then
-            PATCH_URL=$(echo "$RELEASE_INFO" | jq -r '.[0].description' | grep -oP 'https://gitlab.com/[^\s)]+\.(jar|rvp|mpp)' | head -n 1)
+            PATCH_URL=$(echo "$RELEASE_INFO" | jq -r '.[0].description' | grep -oP 'https://gitlab.com/[^\s)]+\.(mpp|rvp|jar)' | head -n 1)
+          fi
+
+          if [ -z "$PATCH_URL" ] || [ "$PATCH_URL" == "null" ]; then
+            echo "::error:: Could not find patch file URL in GitLab releases!"
+            exit 1
           fi
 
           echo "Downloading patch from: $PATCH_URL"
-          curl -L -o paresh-patches.jar "$PATCH_URL"
+          curl -L -o paresh-patches.mpp "$PATCH_URL"
+          cp paresh-patches.mpp paresh-patches.rvp
+          
+          echo "Patch file details:"
+          ls -lh paresh-patches.mpp
+          file paresh-patches.mpp
 
       - name: Download & Auto-Merge APKM/Bundle
         run: |
@@ -65,7 +76,7 @@ jobs:
           fi
 
           FILE_TYPE=$(file downloaded_file)
-          echo "File Type: $FILE_TYPE"
+          echo "Downloaded file type: $FILE_TYPE"
 
           if [[ "$FILE_TYPE" == *"Zip archive"* ]] || [[ "${{ github.event.inputs.apk_url }}" =~ \.(apkm|xapk|apks|zip) ]]; then
             echo "Bundle file detected! Merging into standalone APK..."
@@ -79,11 +90,18 @@ jobs:
         run: |
           echo "Patching APK using ReVanced CLI..."
           java -jar revanced-cli.jar patch jiohotstar.apk \
-            --patches paresh-patches.jar \
+            --patches paresh-patches.mpp \
+            --out jiohotstar-patched.apk || \
+          java -jar revanced-cli.jar patch jiohotstar.apk \
+            --patches paresh-patches.rvp \
             --out jiohotstar-patched.apk || \
           java -jar revanced-cli.jar patch \
-            --patches paresh-patches.jar \
-            --out jiohotstar-patched.apk \
+            --patches paresh-patches.mpp \
+            -o jiohotstar-patched.apk \
+            jiohotstar.apk || \
+          java -jar revanced-cli.jar patch \
+            -bp paresh-patches.mpp \
+            -o jiohotstar-patched.apk \
             jiohotstar.apk
 
       - name: Download APK Signer & Sign APK
