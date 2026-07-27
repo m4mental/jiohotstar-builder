@@ -97,23 +97,12 @@ jobs:
 
       - name: Patch APK
         run: |
-          echo "Listing available patches in paresh-patches..."
-          java -jar morphe-cli.jar list-patches paresh-patches.mpp || true
-
-          echo "Patching JioHotstar..."
-          BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
-          AAPT2_PATH="$BUILD_TOOLS_DIR/aapt2"
-
+          echo "Patching APK using Morphe CLI..."
+          
           java -jar morphe-cli.jar patch \
             --patches paresh-patches.mpp \
             --out jiohotstar-patched.apk \
-            --custom-aapt2-binary "$AAPT2_PATH" \
-            --experimental \
-            jiohotstar.apk || \
-          java -jar morphe-cli.jar patch \
-            --patches paresh-patches.mpp \
-            --out jiohotstar-patched.apk \
-            --custom-aapt2-binary "$AAPT2_PATH" \
+            --unsigned \
             jiohotstar.apk
 
       - name: Download APK Signer & Sign APK
