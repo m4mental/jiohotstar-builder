@@ -20,7 +20,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17'
+          java-version: '21'
 
       - name: Install Tools & Setup Android Build-Tools (AAPT2)
         run: |
@@ -31,10 +31,17 @@ jobs:
           echo "Using Android Build-Tools from: $BUILD_TOOLS_DIR"
           echo "$BUILD_TOOLS_DIR" >> $GITHUB_PATH
 
-      - name: Download ReVanced CLI (v4.6.0 Stable)
+      - name: Download Morphe CLI
         run: |
-          echo "Downloading stable ReVanced CLI v4.6.0..."
-          curl -L -o revanced-cli.jar "https://github.com/ReVanced/revanced-cli/releases/download/v4.6.0/revanced-cli-4.6.0-all.jar"
+          echo "Fetching latest Morphe CLI..."
+          CLI_URL=$(curl -s https://api.github.com/repos/MorpheApp/morphe-cli/releases/latest | jq -r '.assets[] | select(.name | endswith(".jar")) | .browser_download_url')
+          
+          if [ -z "$CLI_URL" ] || [ "$CLI_URL" == "null" ]; then
+            CLI_URL=$(curl -s https://api.github.com/repos/MorpheApp/morphe-desktop/releases/latest | jq -r '.assets[] | select(.name | endswith(".jar")) | .browser_download_url')
+          fi
+
+          echo "Downloading Morphe CLI from: $CLI_URL"
+          curl -L -o morphe-cli.jar "$CLI_URL"
 
       - name: Download APKEditor (For Merging Bundles)
         run: |
@@ -60,10 +67,10 @@ jobs:
 
           echo "Downloading patch from: $PATCH_URL"
           curl -L -o paresh-patches.mpp "$PATCH_URL"
-          cp paresh-patches.mpp paresh-patches.jar
           
           echo "Patch file details:"
-          ls -lh paresh-patches.*
+          ls -lh paresh-patches.mpp
+          file paresh-patches.mpp
 
       - name: Download & Auto-Merge APKM/Bundle
         run: |
@@ -90,18 +97,17 @@ jobs:
 
       - name: Patch APK
         run: |
-          echo "Patching APK..."
-          
+          echo "Patching APK using Morphe CLI..."
           BUILD_TOOLS_DIR=$(ls -d $ANDROID_HOME/build-tools/* | tail -n 1)
           AAPT2_PATH="$BUILD_TOOLS_DIR/aapt2"
 
-          java -jar revanced-cli.jar patch \
-            -p paresh-patches.mpp \
-            -o jiohotstar-patched.apk \
-            --custom-aapt2-binary="$AAPT2_PATH" \
+          java -jar morphe-cli.jar patch \
+            --patches paresh-patches.mpp \
+            --out jiohotstar-patched.apk \
+            --custom-aapt2-binary "$AAPT2_PATH" \
             jiohotstar.apk || \
-          java -jar revanced-cli.jar patch \
-            -p paresh-patches.jar \
+          java -jar morphe-cli.jar patch \
+            -p paresh-patches.mpp \
             -o jiohotstar-patched.apk \
             jiohotstar.apk
 
