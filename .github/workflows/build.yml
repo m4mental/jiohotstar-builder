@@ -33,11 +33,11 @@ jobs:
 
       - name: Download Morphe CLI
         run: |
-          echo "Fetching latest Morphe CLI..."
-          CLI_URL=$(curl -s https://api.github.com/repos/MorpheApp/morphe-cli/releases/latest | jq -r '.assets[] | select(.name | endswith(".jar")) | .browser_download_url')
-          
+          echo "Fetching latest Morphe Desktop / CLI..."
+          CLI_URL=$(curl -s https://api.github.com/repos/MorpheApp/morphe-desktop/releases/latest | jq -r '.assets[] | select(.name | endswith(".jar")) | .browser_download_url' | head -n 1)
+
           if [ -z "$CLI_URL" ] || [ "$CLI_URL" == "null" ]; then
-            CLI_URL=$(curl -s https://api.github.com/repos/MorpheApp/morphe-desktop/releases/latest | jq -r '.assets[] | select(.name | endswith(".jar")) | .browser_download_url')
+            CLI_URL=$(curl -s https://api.github.com/repos/MorpheApp/morphe-cli/releases/latest | jq -r '.assets[] | select(.name | endswith(".jar")) | .browser_download_url' | head -n 1)
           fi
 
           echo "Downloading Morphe CLI from: $CLI_URL"
