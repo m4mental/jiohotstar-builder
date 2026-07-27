@@ -16,11 +16,11 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java JDK (Java 17 Stable)
+      - name: Setup Java JDK (Java 21 Required for Morphe CLI)
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17'
+          java-version: '21'
 
       - name: Install Tools & Setup Android Build-Tools (AAPT2)
         run: |
@@ -103,7 +103,7 @@ jobs:
 
           echo "Using AAPT2 binary at: $AAPT2_PATH"
 
-          # Run Morphe CLI patcher and output log
+          # Run Morphe CLI patcher with Java 21
           java -jar morphe-cli.jar patch \
             --patches paresh-patches.mpp \
             --out jiohotstar-patched.apk \
@@ -116,7 +116,7 @@ jobs:
             -u \
             jiohotstar.apk 2>&1 | tee patch.log
 
-          # Verify if output file exists
+          # Verify output file
           if [ ! -f "jiohotstar-patched.apk" ]; then
             echo "=================== FULL ERROR LOG ==================="
             cat patch.log
